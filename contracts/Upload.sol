@@ -3,48 +3,95 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 contract Upload {
-  
-  struct Access{
-     address user; 
-     bool access; //true or false
-  }
-  mapping(address=>string[]) value;
-  mapping(address=>mapping(address=>bool)) ownership;
-  mapping(address=>Access[]) accessList;
-  mapping(address=>mapping(address=>bool)) previousData;
 
-  function add(address _user,string memory url) external {
-      value[_user].push(url);
+  struct Access {
+    address user;
+    bool hasAccess;
   }
-  function allow(address user) external {//def
-      ownership[msg.sender][user]=true; 
-      if(previousData[msg.sender][user]){
-         for(uint i=0;i<accessList[msg.sender].length;i++){
-             if(accessList[msg.sender][i].user==user){
-                  accessList[msg.sender][i].access=true; 
-             }
-         }
-      }else{
-          accessList[msg.sender].push(Access(user,true));  
-          previousData[msg.sender][user]=true;  
+
+  enum UserRole { Client, Lawyer, Judge }
+
+  struct UserData {
+    string[] documentUrls;
+    mapping(address => bool) documentOwnership;
+    Access[] accessList;
+    bool roleSet;
+  }
+
+  mapping(address => UserData) private users;
+  mapping(address => UserRole) private userRoles;
+
+  function setUserRole(address user, UserRole role) public {
+    require(!users[user].roleSet, "Role has already been set for this user");
+    require(msg.sender == user || userRoles[msg.sender] == UserRole.Judge, "Only Judge or self can set role");
+    userRoles[user] = role;
+    users[user].roleSet = true;
+  }
+
+  function addDocument(string memory documentUrl) public {
+    users[msg.sender].documentUrls.push(documentUrl);
+  }
+
+  function allowAccess(address user) public {
+      users[msg.sender].documentOwnership[user] = true;
+
+      bool sharedWithUser = false;
+      for (uint i = 0; i < users[msg.sender].accessList.length; i++) {
+          if (users[msg.sender].accessList[i].user == user) {
+              users[msg.sender].accessList[i].hasAccess = true;
+              sharedWithUser = true;
+              break;
+          }
       }
-    
+
+      if (!sharedWithUser) {
+          users[msg.sender].accessList.push(Access(user, true));
+      }
   }
-  function disallow(address user) public{
-      ownership[msg.sender][user]=false;
-      for(uint i=0;i<accessList[msg.sender].length;i++){
-          if(accessList[msg.sender][i].user==user){ 
-              accessList[msg.sender][i].access=false;  
+
+  function disallowAccess(address user) public {
+      users[msg.sender].documentOwnership[user] = false;
+
+      for (uint i = 0; i < users[msg.sender].accessList.length; i++) {
+          if (users[msg.sender].accessList[i].user == user) {
+              users[msg.sender].accessList[i].hasAccess = false;
+              break;
+          }
+      }
+
+      for (uint i = 0; i < users[user].accessList.length; i++) {
+          if (users[user].accessList[i].user == msg.sender) {
+              users[user].accessList[i].hasAccess = false;
+              break;
           }
       }
   }
 
-  function display(address _user) external view returns(string[] memory){
-      require(_user==msg.sender || ownership[_user][msg.sender],"You don't have access");
-      return value[_user];
+  function viewDocuments(address userAddress) public view returns (string[] memory) {
+      UserRole senderRole = userRoles[msg.sender];
+      UserRole targetRole = userRoles[userAddress];
+
+      // Check if the sender has access to view documents of the target user
+      require(
+          msg.sender == userAddress ||
+          (senderRole == UserRole.Judge && targetRole < UserRole.Judge) ||
+          (senderRole == UserRole.Lawyer && targetRole < UserRole.Lawyer) ||
+          (users[userAddress].documentOwnership[msg.sender]),
+          "You don't have access"
+      );
+
+      return users[userAddress].documentUrls;
   }
 
-  function shareAccess() public view returns(Access[] memory){
-      return accessList[msg.sender];
+  function shareAccess() public view returns (Access[] memory) {
+    return users[msg.sender].accessList;
+  }
+
+  function getUserRole(address user) public view returns (UserRole) {
+    return userRoles[user];
+  }
+
+  function getOwnerAddress() public view returns (address) {
+    return msg.sender;
   }
 }
