@@ -3,7 +3,7 @@ import "./Modal.css";
 const Modal = ({ setModalOpen, contract }) => {
   const sharing = async () => {
     const address = document.querySelector(".address").value;
-    await contract.allow(address);
+    await contract.allowAccess(address);
     setModalOpen(false);
   };
   useEffect(() => {

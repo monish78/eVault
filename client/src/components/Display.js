@@ -7,10 +7,10 @@ const Display = ({ contract, account }) => {
     const Otheraddress = document.querySelector(".address").value;
     try {
       if (Otheraddress) {
-        dataArray = await contract.display(Otheraddress);
+        dataArray = await contract.viewDocuments(Otheraddress);
         console.log(dataArray);
       } else {
-        dataArray = await contract.display(account);
+        dataArray = await contract.viewDocuments(account);
       }
     } catch (e) {
       alert("You don't have access");
